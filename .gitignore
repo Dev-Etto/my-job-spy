@@ -1,0 +1,15 @@
+/venv/
+/.idea
+**/__pycache__/
+**/.pytest_cache/
+/.ipynb_checkpoints/
+**/output/
+**/.DS_Store
+*.pyc
+.env
+dist.venv/
+
+# arquivos pessoais / rascunhos locais
+/cv-*.pdf
+/jobs.csv
+/test.py
