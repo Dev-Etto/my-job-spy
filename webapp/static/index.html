@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JobSpy · Vagas</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎯 <strong>JobSpy</strong> <span class="muted" id="profile-name"></span></div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="jobs" class="active">Vagas <span class="count" id="tab-count-jobs"></span></button>
+      <button data-tab="search">Buscar</button>
+      <button data-tab="pipeline">Candidaturas <span class="badge" id="followup-badge" hidden></span></button>
+      <button data-tab="runs">Execuções <span class="dot" id="run-dot" hidden></span></button>
+      <button data-tab="stats">Painel</button>
+      <button data-tab="auto">Automação</button>
+      <button data-tab="profile">Perfil / CV</button>
+    </nav>
+    <div class="topbar-right">
+      <span id="run-indicator" class="run-indicator" hidden></span>
+      <button class="icon-btn" id="theme-toggle" title="Alternar tema">◐</button>
+    </div>
+  </header>
+
+  <!-- ============================================================ VAGAS -->
+  <main id="tab-jobs" class="tab-panel active">
+    <div class="jobs-layout">
+      <aside class="filters" id="filters">
+        <div class="filters-head">
+          <input type="search" id="f-q" placeholder="Buscar em título, empresa, descrição…  ( / )">
+          <label class="check"><input type="checkbox" id="f-q-title"> só no título/empresa</label>
+        </div>
+        <div class="views-row">
+          <select id="saved-views"><option value="">Filtros salvos…</option></select>
+          <button class="btn sm" id="save-view">Salvar</button>
+          <button class="btn sm ghost" id="reset-filters">Limpar</button>
+        </div>
+        <div class="filters-body" id="filters-body"></div>
+      </aside>
+
+      <section class="results">
+        <div class="results-bar">
+          <div><strong id="result-count">0</strong> <span class="muted">vagas</span> <span class="muted" id="result-sub"></span></div>
+          <div class="results-actions">
+            <select id="sort">
+              <option value="score">Maior score</option>
+              <option value="date">Mais recentes</option>
+              <option value="first_seen">Encontradas recentemente</option>
+              <option value="salary">Maior salário</option>
+              <option value="company">Empresa A–Z</option>
+            </select>
+            <button class="btn sm ghost" id="export-csv" title="Exportar vagas filtradas">CSV</button>
+            <button class="btn sm ghost" id="bulk-discard" title="Descartar todas as vagas filtradas">Descartar filtradas</button>
+          </div>
+        </div>
+        <div class="banner" id="jobs-banner" hidden></div>
+        <div class="job-list" id="job-list"></div>
+        <div class="empty" id="jobs-empty" hidden>
+          <p><strong>Nenhuma vaga ainda.</strong></p>
+          <p class="muted">Vá em <a href="#" data-goto="search">Buscar</a> e execute um template recomendado, ou importe o <code>jobs.csv</code> existente.</p>
+          <button class="btn" id="import-csv">Importar jobs.csv</button>
+        </div>
+      </section>
+
+      <section class="detail" id="detail">
+        <div class="detail-empty muted"><div>Selecione uma vaga<br><small>Atalhos: <kbd>j</kbd>/<kbd>k</kbd> navegar · <kbd>s</kbd> salvar · <kbd>a</kbd> aplicada · <kbd>e</kbd> entrevista · <kbd>d</kbd> descartar · <kbd>o</kbd> abrir</small></div></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ============================================================ BUSCAR -->
+  <main id="tab-search" class="tab-panel">
+    <div class="search-layout">
+      <section class="templates">
+        <div class="section-head">
+          <h2>Templates recomendados pelo seu CV</h2>
+          <div class="row gap">
+            <button class="btn sm" id="run-selected" disabled>Executar selecionados</button>
+            <button class="btn sm ghost" data-run-group="Brasil">Todos Brasil</button>
+            <button class="btn sm ghost" data-run-group="Internacional">Todos Internacional</button>
+          </div>
+        </div>
+        <p class="muted small">Cada template já ajusta os parâmetros às limitações de cada site (ex.: Indeed ignora o filtro remoto quando há filtro de data, então o termo leva "remoto"). Execuções rodam em fila, uma de cada vez.</p>
+        <div id="template-groups"></div>
+      </section>
+
+      <section class="search-form card">
+        <div class="section-head">
+          <h2>Busca personalizada</h2>
+          <span class="muted small" id="form-template-label"></span>
+        </div>
+        <form id="search-form" autocomplete="off">
+          <fieldset>
+            <legend>Sites</legend>
+            <div class="chips" id="form-sites"></div>
+          </fieldset>
+          <div class="grid2">
+            <label>Termo de busca<input name="search_term" placeholder="desenvolvedor full stack node react"></label>
+            <label>Termo do Google <span class="hint">frase natural; substitui tudo no Google</span><input name="google_search_term" placeholder="vagas desenvolvedor node remoto"></label>
+            <label>Localização<input name="location" placeholder="Brazil, Recife, PE, Latin America, Worldwide…" list="loc-suggestions"></label>
+            <label>País (Indeed/Glassdoor)<select name="country_indeed" id="form-country"></select></label>
+            <label>Região das vagas <span class="hint">usada quando a vaga não tem local</span>
+              <select name="region"><option value="br">Brasil</option><option value="intl">Internacional</option></select></label>
+            <label>Tipo de contrato<select name="job_type" id="form-jobtype"><option value="">Qualquer</option></select></label>
+            <label>Publicadas nas últimas
+              <select name="hours_old">
+                <option value="">Qualquer data</option><option value="24">24 horas</option><option value="72">3 dias</option>
+                <option value="168">7 dias</option><option value="336">14 dias</option><option value="720">30 dias</option>
+              </select></label>
+            <label>Resultados por site<input name="results_wanted" type="number" min="1" max="1000" value="50"></label>
+            <label>Distância (milhas)<input name="distance" type="number" min="0" value="50"></label>
+            <label>Offset<input name="offset" type="number" min="0" value="0"></label>
+          </div>
+          <div class="checks">
+            <label class="check"><input type="checkbox" name="is_remote"> Somente remoto</label>
+            <label class="check"><input type="checkbox" name="linkedin_fetch_description" checked> LinkedIn: buscar descrição completa <span class="hint">(mais lento, melhora o score)</span></label>
+            <label class="check"><input type="checkbox" name="easy_apply"> Candidatura simplificada</label>
+            <label class="check"><input type="checkbox" name="enforce_annual_salary"> Converter salário para anual</label>
+          </div>
+          <details class="adv">
+            <summary>Ajustes por site</summary>
+            <p class="muted small">Sobrescreve o termo/local apenas para um site. Deixe vazio para usar o geral.</p>
+            <div id="form-overrides"></div>
+          </details>
+          <details class="adv">
+            <summary>Avançado: proxies, empresas do LinkedIn, formato</summary>
+            <label>Proxies <span class="hint">um por linha — user:pass@host:port ou socks5://…</span><textarea name="proxies" rows="3"></textarea></label>
+            <label>IDs de empresas no LinkedIn <span class="hint">separados por vírgula</span><input name="linkedin_company_ids" placeholder="1441, 1035"></label>
+            <label>Formato da descrição<select name="description_format"><option value="markdown">markdown</option><option value="html">html</option><option value="plain">plain</option></select></label>
+          </details>
+          <div class="warnings" id="form-warnings"></div>
+          <details class="adv" id="tpl-meta">
+            <summary>Salvar como template</summary>
+            <div class="grid2">
+              <label>Nome<input name="tpl_name" placeholder="ex.: Back-end Node remoto"></label>
+              <label>Descrição <span class="hint">opcional</span><input name="tpl_why" placeholder="por que essa busca"></label>
+            </div>
+            <div class="row gap end" style="margin-top:8px">
+              <button type="button" class="btn sm" id="update-template" hidden>Salvar alterações no template</button>
+              <button type="button" class="btn sm" id="save-template">Salvar como novo</button>
+            </div>
+          </details>
+          <div class="row gap end">
+            <button type="submit" class="btn primary">Buscar vagas</button>
+          </div>
+        </form>
+        <datalist id="loc-suggestions">
+          <option value="Brazil"><option value="São Paulo, SP"><option value="Recife, PE"><option value="Caruaru, PE">
+          <option value="Latin America"><option value="Worldwide"><option value="United States"><option value="European Union"><option value="Portugal"><option value="Canada">
+        </datalist>
+      </section>
+    </div>
+  </main>
+
+  <!-- ============================================================ CANDIDATURAS -->
+  <main id="tab-pipeline" class="tab-panel">
+    <div class="pipeline-wrap">
+      <div class="section-head">
+        <div><h2>Candidaturas</h2><span class="muted small">arraste os cartões entre as colunas · lembrete de follow-up após <span id="followup-days"></span> dias sem novidade</span></div>
+      </div>
+      <div class="pipeline" id="pipeline"></div>
+    </div>
+  </main>
+
+  <!-- ============================================================ EXECUÇÕES -->
+  <main id="tab-runs" class="tab-panel">
+    <div class="narrow">
+      <div class="section-head">
+        <div><h2>Execuções</h2><span class="muted small">atualiza sozinho enquanto há buscas rodando</span></div>
+        <button class="btn sm ghost danger" data-del-run="all">Limpar histórico</button>
+      </div>
+      <div id="run-list"></div>
+    </div>
+  </main>
+
+  <!-- ============================================================ PAINEL -->
+  <main id="tab-stats" class="tab-panel">
+    <div class="narrow wide">
+      <div class="section-head">
+        <h2>Painel</h2>
+        <label class="check"><input type="checkbox" id="stats-filtered" checked> aplicar filtros da aba Vagas</label>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="stats-grid" id="stats-grid"></div>
+    </div>
+  </main>
+
+  <!-- ============================================================ AUTOMAÇÃO -->
+  <main id="tab-auto" class="tab-panel">
+    <div class="narrow">
+      <section class="card auto-card">
+        <div class="section-head">
+          <div><h2>Buscas agendadas</h2><span class="muted small">rodam sozinhas enquanto o servidor estiver ligado; se ele estava desligado no horário, rodam assim que ele subir (no mesmo dia)</span></div>
+          <button class="btn sm" id="add-schedule">+ Agendar template</button>
+        </div>
+        <div id="schedules"></div>
+      </section>
+
+      <section class="card auto-card">
+        <div class="section-head"><h2>Limpeza automática</h2><span class="muted small">roda ao iniciar e uma vez por dia</span></div>
+        <div class="kv">
+          <label>Arquivar vagas "Nova" não vistas em buscas há (dias) <input type="number" min="0" id="s-archive"></label>
+          <label>Apagar do histórico buscas com mais de (dias) <input type="number" min="0" id="s-runs"></label>
+          <label>Lembrar follow-up após (dias) <input type="number" min="1" id="s-followup"></label>
+        </div>
+        <p class="muted small">0 desativa. Arquivar nunca mexe em vagas salvas, aplicadas, em entrevista ou descartadas, e uma vaga arquivada volta a "Nova" se aparecer de novo numa busca. Apagar buscas antigas não apaga vagas.</p>
+        <div class="row gap">
+          <button class="btn sm primary" id="save-cleanup">Salvar</button>
+          <button class="btn sm ghost" id="run-cleanup">Limpar agora</button>
+          <span class="muted small" id="cleanup-preview"></span>
+        </div>
+      </section>
+
+      <section class="card auto-card">
+        <div class="section-head"><h2>Saúde dos sites</h2><span class="muted small">últimas buscas de cada site</span></div>
+        <div id="site-health"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ============================================================ PERFIL -->
+  <main id="tab-profile" class="tab-panel">
+    <div class="narrow wide">
+      <div class="section-head">
+        <h2>Perfil usado no score</h2>
+        <div class="row gap">
+          <button class="btn ghost sm" id="profile-reset">Restaurar padrão do CV</button>
+          <button class="btn primary sm" id="profile-save">Salvar e recalcular</button>
+        </div>
+      </div>
+      <section class="card cv-card">
+        <div class="section-head">
+          <div><h3 style="margin:0">Gerar a partir de um CV (PDF)</h3><span class="muted small">lê o PDF, monta stacks, senioridade, local e templates — você revisa antes de aplicar</span></div>
+          <label class="btn sm" for="cv-file" style="font-weight:400">Escolher PDF…</label>
+          <input type="file" id="cv-file" accept="application/pdf" hidden>
+        </div>
+        <div id="cv-preview"></div>
+      </section>
+      <p class="muted small">O score (0–100) soma: base + aderência de stack (até 55) − stacks fora do CV + senioridade + modalidade + localização − inglês fluente − anos exigidos acima do seu limite. Padrões são expressões regulares aplicadas ao texto sem acentos, em minúsculas.</p>
+      <div id="profile-form"></div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
